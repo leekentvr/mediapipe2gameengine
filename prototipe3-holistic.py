@@ -76,15 +76,15 @@ def find_and_package_bodies(results, cameraID):
 
       # For testing / debugging only send wrists so is more obvious what is happening
       if right_wrist.visibility > 0.8:
-        #print(f'Cam0 right wrist: {right_wrist.x:.5f},{right_wrist.y:.5f}, {right_wrist.z:.5f}')
+        print(f'Cam0 right wrist: {right_wrist.x:.5f},{right_wrist.y:.5f}, {right_wrist.z:.5f}')
         #print(f'Cam0 right wrist: {right_wrist.x:.5f},{right_wrist_world.x:.5f}')
         msg = str(bodycount) + ',' + str(16) +  f',{right_wrist.x:.5f},{right_wrist.y:.5f}, {right_wrist.z:.5f}, {right_wrist.visibility:.3f}'+ ',' + str(cameraID)
-        client.sendall(msg.encode("utf-8"))
+        #client.sendall(msg.encode("utf-8"))
 
       if left_wrist.visibility > 0.8:
-        #print(f'Cam1 right wrist: {right_wrist.x:.5f},{right_wrist.y:.5f}, {right_wrist.z:.5f}')
-        msg = str(bodycount) + ',' + str(16) +  f',{left_wrist.x:.5f},{left_wrist.y:.5f}, {left_wrist.z:.5f}, {left_wrist.visibility:.3f}'+ ',' + str(cameraID)
-        client.sendall(msg.encode("utf-8"))
+        print(f'Cam1 left wrist: {left_wrist.x:.5f},{left_wrist.y:.5f}, {left_wrist.z:.5f}')
+        msg = str(bodycount) + ',' + str(17) +  f',{left_wrist.x:.5f},{left_wrist.y:.5f}, {left_wrist.z:.5f}, {left_wrist.visibility:.3f}'+ ',' + str(cameraID)
+        #client.sendall(msg.encode("utf-8"))
 
       ######################################################################
       ## Main joint packaging section (to send everything later)
@@ -108,7 +108,7 @@ def find_and_package_bodies(results, cameraID):
               #client.sendall(msg.encode("utf-8"))
             else:
               msg = str(bodycount) + ',' + str(node) +  f',{lm.x:.5f},{lm.y:.5f}, {lm.z:.5f}, {lm.visibility:.3f}'+ ',' + str(cameraID)
-              #client.sendall(msg.encode("utf-8"))
+              client.sendall(msg.encode("utf-8"))
             node = node + 1
       bodycount = bodycount + 1
 
