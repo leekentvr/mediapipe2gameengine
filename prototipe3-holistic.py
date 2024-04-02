@@ -12,8 +12,8 @@ import mediapipe as mp
 # Choose camera IDs here
 # THESE MUST MATCH
 ######################################################################
-numberOfCameras = 3 # How many physical cameras are there
-captureIDs = [0,1,2] # Manually input cam ID order
+numberOfCameras = 2 # How many physical cameras are there
+captureIDs = [0,1] # Manually input cam ID order
 
 if len(captureIDs) != numberOfCameras:
   print("Make sure each camera has an ID!")
@@ -104,27 +104,17 @@ def find_and_package_bodies(results, cameraID):
       right_hip = pose_bodies[mp_pose.PoseLandmark.RIGHT_HIP.value]
       # Pose landmark x,y gives the coordinate on the screen
       right_wrist = pose_bodies[mp_pose.PoseLandmark.RIGHT_WRIST.value]
-      left_wrist = pose_bodies[mp_pose.PoseLandmark.LEFT_WRIST.value]
-
-      # Poseworldlandmark gives coordinates relative to hips
-      # right_wrist_world = results.pose_world_landmarks[bodycount][mp_pose.PoseLandmark.RIGHT_WRIST.value]
 
       # For testing / debugging only send wrists so is more obvious what is happening
       if right_wrist.visibility > 0.8:
-        print(f'Cam0 right wrist: {right_wrist.x:.5f},{right_wrist.y:.5f}, {right_wrist.z:.5f}')
-        #print(f'Cam0 right wrist: {right_wrist.x:.5f},{right_wrist_world.x:.5f}')
+        print(f'Cam right wrist: {right_wrist.x:.5f},{right_wrist.y:.5f}, {right_wrist.z:.5f}')
         msg = str(bodycount) + ',' + str(16) +  f',{right_wrist.x:.5f},{right_wrist.y:.5f}, {right_wrist.z:.5f}, {right_wrist.visibility:.3f}'+ ',' + str(cameraID)
         #client.sendall(msg.encode("utf-8"))
 
-      if left_wrist.visibility > 0.8:
-        print(f'Cam1 left wrist: {left_wrist.x:.5f},{left_wrist.y:.5f}, {left_wrist.z:.5f}')
-        msg = str(bodycount) + ',' + str(17) +  f',{left_wrist.x:.5f},{left_wrist.y:.5f}, {left_wrist.z:.5f}, {left_wrist.visibility:.3f}'+ ',' + str(cameraID)
-        #client.sendall(msg.encode("utf-8"))
-
       ######################################################################
-      ## Main joint packaging section (to send everything later)
+      ## joint packaging and transmission
       ######################################################################
-      acceptableVisiblity = 0.2
+      acceptableVisiblity = 0.4
       if(left_hip.visibility > acceptableVisiblity and right_hip.visibility > acceptableVisiblity):
         ## found the hips so send rest of body
         if results.pose_world_landmarks:
@@ -150,34 +140,32 @@ def find_and_package_bodies(results, cameraID):
             node = node + 1
       bodycount = bodycount + 1
 
-
-
-# For POSE ONLY:
-# Multi camera stuff is hardcoded for now, but functions need to be extracted later
-runBothCams = True
-
+######################################################################
+# CAMERA SETUP AND POSE ANALYSIS
+######################################################################
 landmarkers = []
 captures = []
-drawWindows = []
 
+# Set up landmarkers and video streams
 for counter in range(numberOfCameras):
   landmarkers.append(vision.PoseLandmarker.create_from_options(options))
   captures.append(cv2.VideoCapture(counter))
 
-# Create a loop to read the latest frame from the camera using VideoCapture read()
-while captures[0].isOpened():
+# Loop for as long as the last capture is open (last camera is most likely to fail)
+while captures[numberOfCameras-1].isOpened():
   for counter in range(numberOfCameras):
     success,image = captures[counter].read()
     if not success:
-      print("Image capture 1 failed.")
+      print("Image capture failed: CAM" + str(counter))
       continue
+
     # Convert the frame received from OpenCV to a MediaPipe’s Image object.
     mp_image = mp.Image(
         image_format=mp.ImageFormat.SRGB,
         data=cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     timestamp_ms = int(cv2.getTickCount() / cv2.getTickFrequency() * 1000)
 
-    # Runs the pose dections on First Camera
+    # Runs the pose dections on camera
     results = landmarkers[counter].detect_for_video(mp_image, timestamp_ms)
     find_and_package_bodies(results, counter)
 
@@ -187,9 +175,9 @@ while captures[0].isOpened():
     if to_window is not None:
       cv2.imshow(str(counter), to_window)
 
-    # Break option 
-    if cv2.waitKey(5) & 0xFF == 27:
-      break
+  # Break option 
+  if cv2.waitKey(5) & 0xFF == 27:
+    break
 
 for capture in captures:
   capture.release()
