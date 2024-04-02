@@ -8,6 +8,20 @@ from mediapipe.framework.formats import landmark_pb2
 import protobuf_to_dict
 import mediapipe as mp
 
+######################################################################
+# Choose camera IDs here
+# THESE MUST MATCH
+######################################################################
+numberOfCameras = 3 # How many physical cameras are there
+captureIDs = [0,1,2] # Manually input cam ID order
+
+if len(captureIDs) != numberOfCameras:
+  print("Make sure each camera has an ID!")
+  quit()
+######################################################################
+#
+######################################################################
+
 mp_drawing = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
 
@@ -27,6 +41,11 @@ try:
 except socket.error as err:
   print(err)
 
+
+######################################################################
+# MODEL SETUP
+######################################################################
+
 mp_pose = mp.solutions.pose
 model_path = "pose_landmarker_full.task"
 #model_path = "pose_landmarker_heavy.task" #heavy is slower and more accurate
@@ -35,6 +54,18 @@ num_poses = 2 # maximum number of poses that can be tracked
 to_window = None
 to_window2 = None
 last_timestamp_ms = 0
+
+# Setup configuration options for mediapipe pose tracking
+base_options = python.BaseOptions(model_asset_path=model_path)
+options = vision.PoseLandmarkerOptions(
+    base_options=base_options,
+    running_mode=vision.RunningMode.VIDEO,
+    num_poses=num_poses,
+    min_pose_detection_confidence=0.5,
+    min_pose_presence_confidence=0.5,
+    min_tracking_confidence=0.5,
+    output_segmentation_masks=False
+)
 
 # Visualiser function
 def draw_landmarks_on_image(rgb_image, detection_result):
@@ -57,6 +88,10 @@ def draw_landmarks_on_image(rgb_image, detection_result):
             mp.solutions.pose.POSE_CONNECTIONS,
             mp.solutions.drawing_styles.get_default_pose_landmarks_style())
     return annotated_image
+
+######################################################################
+# POSE RETRIEVAL AND TRANSMISSION
+######################################################################
 
 def find_and_package_bodies(results, cameraID):
   if results.pose_landmarks:
@@ -115,79 +150,49 @@ def find_and_package_bodies(results, cameraID):
             node = node + 1
       bodycount = bodycount + 1
 
-# Setup configuration options for mediapipe pose tracking
-base_options = python.BaseOptions(model_asset_path=model_path)
-options = vision.PoseLandmarkerOptions(
-    base_options=base_options,
-    running_mode=vision.RunningMode.VIDEO,
-    num_poses=num_poses,
-    min_pose_detection_confidence=0.5,
-    min_pose_presence_confidence=0.5,
-    min_tracking_confidence=0.5,
-    output_segmentation_masks=False
-)
+
 
 # For POSE ONLY:
 # Multi camera stuff is hardcoded for now, but functions need to be extracted later
 runBothCams = True
 
-with vision.PoseLandmarker.create_from_options(options) as landmarker:
-  with vision.PoseLandmarker.create_from_options(options) as landmarker2:
-    cap = cv2.VideoCapture(0)
-    print()
-    cap2 = None
-    if(runBothCams): 
-      cap2 = cv2.VideoCapture(1)
-    # Create a loop to read the latest frame from the camera using VideoCapture read()
-    while cap.isOpened() and cap2.isOpened():
-    #while cap.isOpened():
-        success, image = cap.read()
-        if not success:
-            print("Image capture 1 failed.")
-            continue
-        if(runBothCams):
-          success, image2 = cap2.read()
-          if not success:
-              print("Image capture 2 failed.")
-              continue
+landmarkers = []
+captures = []
+drawWindows = []
 
-        # Convert the frame received from OpenCV to a MediaPipe’s Image object.
-        mp_image = mp.Image(
-            image_format=mp.ImageFormat.SRGB,
-            data=cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-        timestamp_ms = int(cv2.getTickCount() / cv2.getTickFrequency() * 1000)
+for counter in range(numberOfCameras):
+  landmarkers.append(vision.PoseLandmarker.create_from_options(options))
+  captures.append(cv2.VideoCapture(counter))
 
-        # Runs the pose dections on First Camera
-        results = landmarker.detect_for_video(mp_image, timestamp_ms)
-        find_and_package_bodies(results, 0)
+# Create a loop to read the latest frame from the camera using VideoCapture read()
+while captures[0].isOpened():
+  for counter in range(numberOfCameras):
+    success,image = captures[counter].read()
+    if not success:
+      print("Image capture 1 failed.")
+      continue
+    # Convert the frame received from OpenCV to a MediaPipe’s Image object.
+    mp_image = mp.Image(
+        image_format=mp.ImageFormat.SRGB,
+        data=cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    timestamp_ms = int(cv2.getTickCount() / cv2.getTickFrequency() * 1000)
 
-        if(runBothCams):
-          # Convert the frame received from OpenCV to a MediaPipe’s Image object.
-          mp_image2 = mp.Image(
-              image_format=mp.ImageFormat.SRGB,
-              data=cv2.cvtColor(image2, cv2.COLOR_BGR2RGB))
-          #timestamp_ms2 = timestamp_ms + 1
+    # Runs the pose dections on First Camera
+    results = landmarkers[counter].detect_for_video(mp_image, timestamp_ms)
+    find_and_package_bodies(results, counter)
 
-          # Runs the pose dections on Second Camera
-          results2 = landmarker2.detect_for_video(mp_image2, timestamp_ms)
-          find_and_package_bodies(results2, 1)
+    # Draw to window
+    to_window = cv2.cvtColor(
+      draw_landmarks_on_image(mp_image.numpy_view(), results), cv2.COLOR_RGB2BGR)
+    if to_window is not None:
+      cv2.imshow(str(counter), to_window)
 
-        to_window = cv2.cvtColor(
-          draw_landmarks_on_image(mp_image.numpy_view(), results), cv2.COLOR_RGB2BGR)
-        if to_window is not None:
-          cv2.imshow('PoseFinder 0', to_window)
+    # Break option 
+    if cv2.waitKey(5) & 0xFF == 27:
+      break
 
-        if(runBothCams):
-          to_window2 = cv2.cvtColor(
-            draw_landmarks_on_image(mp_image2.numpy_view(), results2), cv2.COLOR_RGB2BGR)
-          if to_window2 is not None:
-            cv2.imshow('PoseFinder 1', to_window2)
-
-        if cv2.waitKey(5) & 0xFF == 27:
-          break
+for capture in captures:
+  capture.release()
 
 # Exit program gracefully
-cap.release()
-if(runBothCams): 
-  cap2.release()
 client.close()
