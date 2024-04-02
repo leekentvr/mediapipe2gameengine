@@ -99,16 +99,19 @@ def find_and_package_bodies(results, cameraID):
           currentbody = results.pose_landmarks[bodycount]
 
           for lm in currentbody:
-            if node == 23:
-              msg = str(bodycount) + ',' + str(23) +  f',{left_hip.x:.5f},{left_hip.y:.5f}, {left_hip.z:.5f}, {left_hip.visibility:.3f}'+ ',' + str(cameraID)
-              #client.sendall(msg.encode("utf-8"))
-              #print(msg)
-            elif node == 24:
-              msg = str(bodycount) + ',' + str(24) +  f',{right_hip.x:.5f},{right_hip.y:.5f}, {right_hip.z:.5f}, {right_hip.visibility:.3f}'+ ',' + str(cameraID)
-              #client.sendall(msg.encode("utf-8"))
-            else:
-              msg = str(bodycount) + ',' + str(node) +  f',{lm.x:.5f},{lm.y:.5f}, {lm.z:.5f}, {lm.visibility:.3f}'+ ',' + str(cameraID)
-              client.sendall(msg.encode("utf-8"))
+            msg = str(bodycount) + ',' + str(node) +  f',{lm.x:.5f},{lm.y:.5f}, {lm.z:.5f}, {lm.visibility:.3f}'+ ',' + str(cameraID)
+            client.sendall(msg.encode("utf-8"))
+            # This code checks for hips specifically
+            # if node == 23:
+            #   msg = str(bodycount) + ',' + str(23) +  f',{left_hip.x:.5f},{left_hip.y:.5f}, {left_hip.z:.5f}, {left_hip.visibility:.3f}'+ ',' + str(cameraID)
+            #   #client.sendall(msg.encode("utf-8"))
+            #   #print(msg)
+            # elif node == 24:
+            #   msg = str(bodycount) + ',' + str(24) +  f',{right_hip.x:.5f},{right_hip.y:.5f}, {right_hip.z:.5f}, {right_hip.visibility:.3f}'+ ',' + str(cameraID)
+            #   #client.sendall(msg.encode("utf-8"))
+            # else:
+            #   msg = str(bodycount) + ',' + str(node) +  f',{lm.x:.5f},{lm.y:.5f}, {lm.z:.5f}, {lm.visibility:.3f}'+ ',' + str(cameraID)
+            #   client.sendall(msg.encode("utf-8"))
             node = node + 1
       bodycount = bodycount + 1
 
@@ -131,6 +134,7 @@ runBothCams = True
 with vision.PoseLandmarker.create_from_options(options) as landmarker:
   with vision.PoseLandmarker.create_from_options(options) as landmarker2:
     cap = cv2.VideoCapture(0)
+    print()
     cap2 = None
     if(runBothCams): 
       cap2 = cv2.VideoCapture(1)
