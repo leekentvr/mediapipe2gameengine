@@ -9,24 +9,12 @@ import protobuf_to_dict
 import mediapipe as mp
 
 ######################################################################
-# Choose camera IDs here
-# THESE MUST MATCH
-######################################################################
-numberOfCameras = 2 # How many physical cameras are there
-captureIDs = [0,1] # Manually input cam ID order
-
-if len(captureIDs) != numberOfCameras:
-  print("Make sure each camera has an ID!")
-  quit()
-######################################################################
-#
+# CHOOSE CAMERA IDs HERE
+# THE NUMBER OF CAMERAS MUST MATCH NUMBER OF IDS
 ######################################################################
 
-mp_drawing = mp.solutions.drawing_utils
-mp_pose = mp.solutions.pose
-
-mp_drawing = mp.solutions.drawing_utils
-mp_drawing_styles = mp.solutions.drawing_styles
+captureIDs = [0,1,2] # Manually input cam ID order
+numberOfCameras = len(captureIDs)
 
 ######################################################################
 # SOCKET SETUP
@@ -41,10 +29,15 @@ try:
 except socket.error as err:
   print(err)
 
-
 ######################################################################
 # MODEL SETUP
 ######################################################################
+
+mp_drawing = mp.solutions.drawing_utils
+mp_pose = mp.solutions.pose
+
+mp_drawing = mp.solutions.drawing_utils
+mp_drawing_styles = mp.solutions.drawing_styles
 
 mp_pose = mp.solutions.pose
 model_path = "pose_landmarker_full.task"
@@ -114,7 +107,8 @@ def find_and_package_bodies(results, cameraID):
       ######################################################################
       ## joint packaging and transmission
       ######################################################################
-      acceptableVisiblity = 0.4
+      acceptableVisiblity = 0.7
+      # Only send if both hips are visible
       if(left_hip.visibility > acceptableVisiblity and right_hip.visibility > acceptableVisiblity):
         ## found the hips so send rest of body
         if results.pose_world_landmarks:
@@ -123,9 +117,13 @@ def find_and_package_bodies(results, cameraID):
           # currentbody = results.pose_world_landmarks[bodycount]
           currentbody = results.pose_landmarks[bodycount]
 
+          # FOR NOW SEND EVERYTHING AND DO SENSOR FUSION IN UNITY.
+          # TODO: do some processing here to reduce packet throughput
           for lm in currentbody:
             msg = str(bodycount) + ',' + str(node) +  f',{lm.x:.5f},{lm.y:.5f}, {lm.z:.5f}, {lm.visibility:.3f}'+ ',' + str(cameraID)
+            
             client.sendall(msg.encode("utf-8"))
+            
             # This code checks for hips specifically
             # if node == 23:
             #   msg = str(bodycount) + ',' + str(23) +  f',{left_hip.x:.5f},{left_hip.y:.5f}, {left_hip.z:.5f}, {left_hip.visibility:.3f}'+ ',' + str(cameraID)
@@ -138,6 +136,7 @@ def find_and_package_bodies(results, cameraID):
             #   msg = str(bodycount) + ',' + str(node) +  f',{lm.x:.5f},{lm.y:.5f}, {lm.z:.5f}, {lm.visibility:.3f}'+ ',' + str(cameraID)
             #   client.sendall(msg.encode("utf-8"))
             node = node + 1
+      client.sendall("bodyEndMSG".encode("utf-8"))  
       bodycount = bodycount + 1
 
 ######################################################################
@@ -158,13 +157,13 @@ while captures[numberOfCameras-1].isOpened():
     if not success:
       print("Image capture failed: CAM" + str(counter))
       continue
-
+    
     # Convert the frame received from OpenCV to a MediaPipe’s Image object.
     mp_image = mp.Image(
         image_format=mp.ImageFormat.SRGB,
         data=cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     timestamp_ms = int(cv2.getTickCount() / cv2.getTickFrequency() * 1000)
-
+    
     # Runs the pose dections on camera
     results = landmarkers[counter].detect_for_video(mp_image, timestamp_ms)
     find_and_package_bodies(results, counter)
